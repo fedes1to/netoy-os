@@ -1,0 +1,28 @@
+# Build outputs
+/out
+/out/*
+!out/.gitkeep
+
+# ISO artifacts
+*.iso
+*.iso.sha256
+*.iso.sha512
+*.tmp
+
+# Cargo / Rust build artifacts
+/target
+**/target/
+
+# OS-level files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# netoy-tui is tracked as a submodule (see .gitmodules)
+# Submodule paths are tracked by git, do NOT ignore the directory itself.

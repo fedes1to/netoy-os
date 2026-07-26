@@ -1,0 +1,9 @@
+#!/bin/sh
+# Autologin wrapper used by agetty --autologin on the local consoles.
+# agetty has already opened the tty and passes the auto-login arguments as
+#   -f -- <username>
+# The username is the last argument.
+for username in "$@"; do
+	:
+done
+exec /bin/login -f "${username:-root}"

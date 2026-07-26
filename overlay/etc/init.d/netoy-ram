@@ -1,0 +1,220 @@
+#!/sbin/openrc-run
+
+# Copy the kernel modloop squashfs from the boot media into RAM, remount it
+# from the RAM copy, then unmount the boot media. Since the ISO itself was
+# already copied to RAM by the initramfs wrapper, the physical USB stick
+# (or CD) is no longer needed afterwards.
+#
+# Finally this removes any Ventoy device-mapper nodes left on the data
+# partition and mounts the real Ventoy data partition read-write at
+# /mnt/netoy, so netoy-tui can manage ISOs on it with no further trickery.
+#
+# udevd keeps /lib/modules open (via libkmod), which pins the modloop and would
+# make the unmount of the boot media fail with EBUSY. We therefore stop udevd
+# while relocating the modloop and start it again afterwards.
+
+description="Relocate modloop into RAM, release boot media, mount Ventoy data partition"
+
+depend() {
+	after modloop hwdrivers udev udev-trigger
+	before modules
+	keyword -vserver -lxc
+}
+
+restart_udev() {
+	rc-service udev start >/dev/null 2>&1 || true
+	return 0
+}
+
+# Bounded wait until no userspace process has files open on the modloop.
+# udevd workers sometimes keep libkmod open on /lib/modules, so nudge any
+# remaining udevd processes while waiting.
+wait_modloop_idle() {
+	local i=0 users p cmd
+	while [ $i -lt 100 ]; do
+		users=$(fuser -m /.modloop 2>/dev/null)
+		[ -n "$users" ] || return 0
+		for p in $users; do
+			cmd=$(cat /proc/$p/cmdline 2>/dev/null | tr '\0' ' ')
+			case "$cmd" in
+			*udevd*) kill -TERM "$p" 2>/dev/null ;;
+			esac
+		done
+		sleep 0.2
+		i=$((i + 1))
+	done
+	ewarn "modloop still in use by:$users"
+	return 1
+}
+
+stop_udev() {
+	local i
+	rc-service udev stop >/dev/null 2>&1 || true
+	rc-service udev-trigger stop >/dev/null 2>&1 || true
+	for i in $(seq 1 50); do
+		pgrep -x udevd >/dev/null 2>&1 || return 0
+		sleep 0.1
+	done
+	# Fallbacks in case the init script could not stop it.
+	udevadm control --exit >/dev/null 2>&1 || true
+	killall -TERM udevd >/dev/null 2>&1 || true
+	for i in $(seq 1 50); do
+		pgrep -x udevd >/dev/null 2>&1 || return 0
+		sleep 0.1
+	done
+	killall -9 udevd >/dev/null 2>&1 || true
+	for i in $(seq 1 50); do
+		pgrep -x udevd >/dev/null 2>&1 || return 0
+		sleep 0.1
+	done
+	pgrep -x udevd >/dev/null 2>&1 && return 1
+	return 0
+}
+
+start() {
+	local loopdev backing dest i
+
+	# Ensure we are not sitting in a directory that would pin the modloop
+	cd /
+
+	if ! [ -d /.modloop ]; then
+		einfo "No modloop present; nothing to copy to RAM"
+		return 0
+	fi
+
+	loopdev=$(awk '$2 == "/.modloop" {print $1; exit}' /proc/mounts)
+	if [ -z "$loopdev" ]; then
+		einfo "/.modloop is not a block mount; nothing to copy to RAM"
+		return 0
+	fi
+
+	backing=$(cat "/sys/block/${loopdev#/dev/}/loop/backing_file" 2>/dev/null)
+	if [ -z "$backing" ] || [ ! -f "$backing" ]; then
+		einfo "Could not find modloop backing file"
+		return 0
+	fi
+
+	ebegin "Stopping udev while relocating modloop"
+	if ! stop_udev; then
+		eend 1
+		eerror "udevd would not stop; leaving modloop on the boot media"
+		restart_udev
+		return 0
+	fi
+	eend 0
+
+	# Wait for any module loading that was still in flight when udev stopped.
+	wait_modloop_idle
+
+	ebegin "Copying modloop from boot media to RAM"
+	dest=/lib/.netoy-ram
+	mkdir -p "$dest"
+	if ! cp -a "$backing" "$dest/modloop.img"; then
+		eend 1
+		eerror "Failed to copy modloop; leaving modloop on the boot media"
+		restart_udev
+		return 0
+	fi
+	eend 0
+
+	ebegin "Switching modloop to RAM copy"
+	i=0
+	while [ $i -lt 50 ]; do
+		if umount -d /.modloop 2>/dev/null; then
+			break
+		fi
+		sleep 0.2
+		i=$((i + 1))
+	done
+	if mountpoint -q /.modloop; then
+		eend 1
+		eerror "Could not unmount media-backed modloop"
+		rm -f "$dest/modloop.img"
+		restart_udev
+		return 0
+	fi
+
+	mkdir -p /.modloop
+	if ! mount -o loop,ro "$dest/modloop.img" /.modloop; then
+		eend 1
+		eerror "Could not mount RAM-resident modloop"
+		restart_udev
+		return 0
+	fi
+	eend 0
+
+	rm -rf /lib/modules
+	ln -s /.modloop/modules /lib/modules
+
+	if [ -d /.modloop/modules/firmware ]; then
+		rm -rf /lib/firmware
+		ln -s /lib/modules/firmware /lib/firmware
+	fi
+
+	ebegin "Unmounting boot media"
+	awk '$2 ~ /^\/media\// {print $2}' /proc/mounts | sort -r | \
+	while read -r m; do
+		umount "$m" 2>/dev/null || true
+	done
+	eend 0
+
+	ebegin "Starting udev"
+	restart_udev
+	eend 0
+
+	# Now that the boot media (and modloop) are in RAM, the physical USB
+	# stick is no longer needed. Remove any Ventoy device-mapper nodes that
+	# pin the USB data partition, then mount that partition read-write so
+	# netoy-tui can manage ISOs on it without any further trickery.
+	remove_ventoy_dm
+	mount_ventoy_data_partition
+
+	return 0
+}
+
+# Remove Ventoy's device-mapper nodes (ventoy/vtoy/ventoy2) if present.
+# After the initramfs wrapper neutralizes Ventoy these normally do not
+# exist; this is a defensive cleanup for older boot paths.
+remove_ventoy_dm() {
+	modprobe -q dm-mod 2>/dev/null || true
+	for name in ventoy vtoy ventoy2; do
+		if [ -b "/dev/mapper/$name" ]; then
+			dmsetup remove --force "$name" >/dev/null 2>&1 || true
+		fi
+	done
+}
+
+# Mount the Ventoy data partition (label "Ventoy") at /mnt/netoy rw.
+# No-op if there is no Ventoy stick or it is already mounted.
+mount_ventoy_data_partition() {
+	local dev
+	if [ -e /dev/disk/by-label/Ventoy ]; then
+		dev=$(readlink -f /dev/disk/by-label/Ventoy)
+	fi
+	[ -b "$dev" ] || return 0
+
+	# Skip if already mounted (e.g. netoy-tui or the user mounted it).
+	if awk -v d="$dev" '$1==d {found=1; exit} END {if (!found) exit 1}' /proc/mounts 2>/dev/null; then
+		return 0
+	fi
+
+	# Make sure the filesystem drivers for Ventoy data partitions are
+	# available in the running system (they were only modprobed in the
+	# initramfs).
+	modprobe -q exfat 2>/dev/null || true
+	modprobe -q vfat 2>/dev/null || true
+	modprobe -q ntfs3 2>/dev/null || true
+
+	mkdir -p /mnt/netoy
+	# Try the plain partition node first; fall back to a /dev/mapper
+	# remount node if Ventoy's dm still holds the partition busy.
+	if mount "$dev" /mnt/netoy 2>/dev/null; then
+		return 0
+	fi
+	local mpdev="/dev/mapper/${dev#/dev/}"
+	if [ -b "$mpdev" ] && mount "$mpdev" /mnt/netoy 2>/dev/null; then
+		return 0
+	fi
+	ewarn "Could not mount Ventoy data partition $dev at /mnt/netoy"
+	return 0
+}

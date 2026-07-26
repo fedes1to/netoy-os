@@ -1,0 +1,16 @@
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+
+# Auto-login root on the primary and spare consoles, then start netoy-tui from
+# /root/.profile when the login shell runs on tty1 or ttyS0.
+tty1::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin tty1 38400 linux
+ttyS0::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin ttyS0 115200 vt100
+tty2::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin tty2 38400 linux
+tty3::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin tty3 38400 linux
+tty4::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin tty4 38400 linux
+tty5::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin tty5 38400 linux
+tty6::respawn:/sbin/agetty --autologin root --login-program /usr/local/bin/netoy-autologin tty6 38400 linux
+
+::ctrlaltdel:/sbin/reboot
+::shutdown:/sbin/openrc shutdown

@@ -1,0 +1,3 @@
+[submodule "netoy-tui"]
+	path = netoy-tui
+	url = https://forgejo.fedesito.me/fedesito/netoy-tui.git

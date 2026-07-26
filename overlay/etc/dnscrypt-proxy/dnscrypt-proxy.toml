@@ -1,0 +1,49 @@
+# Minimal netoy DoH configuration.
+# Listens on localhost and forwards to Cloudflare/Google DoH servers.
+# Plain DNS fallback resolvers are used only to bootstrap the sources.
+
+server_names = ['cloudflare', 'google']
+listen_addresses = ['127.0.0.1:53']
+max_clients = 250
+
+ipv4_servers = true
+ipv6_servers = false
+dnscrypt_servers = false
+doh_servers = true
+odoh_servers = false
+
+require_dnssec = false
+require_nolog = true
+require_nofilter = true
+
+force_tcp = false
+timeout = 5000
+keepalive = 30
+log_level = 2
+
+# Plain DNS resolvers used to resolve the source URLs.
+# These are not used for normal queries once DoH is working.
+fallback_resolvers = ['9.9.9.9:53', '8.8.8.8:53']
+ignore_system_dns = true
+
+netprobe_timeout = 60
+netprobe_address = '9.9.9.9:53'
+
+cache = true
+cache_size = 512
+cache_min_ttl = 600
+cache_max_ttl = 86400
+
+block_ipv6 = false
+block_unqualified = true
+block_undelegated = true
+
+[sources.public-resolvers]
+urls = [
+  'https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md',
+  'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md',
+]
+cache_file = '/var/cache/dnscrypt-proxy/public-resolvers.md'
+minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+refresh_delay = 73
+prefix = ''

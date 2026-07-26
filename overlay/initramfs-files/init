@@ -1,0 +1,30 @@
+#!/bin/sh
+# netoy initramfs wrapper.
+# When booted through Ventoy, the original Alpine initramfs cannot find the boot
+# media because Ventoy exposes the ISO as a file on a USB data partition, not
+# as a real CD-ROM.  This wrapper loads the ISO file into RAM (with a progress
+# bar), attaches it to a loop device, then hands over to the original Alpine
+# initramfs.  After the hand-off the USB stick can be unplugged.
+
+export PATH=/usr/bin:/usr/sbin:/bin:/sbin
+
+# Make sure the basic virtual filesystems are present for blkid, modprobe, etc.
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sys /sys 2>/dev/null || true
+mount -t devtmpfs dev /dev 2>/dev/null || true
+
+# The initramfs busybox has losetup/dmsetup built-in or copied in, but the
+# symlinks may be missing.
+[ -x /sbin/losetup ] || ln -sf /bin/busybox /sbin/losetup 2>/dev/null || true
+
+# Load device-mapper support; the Ventoy wrapper creates a linear remapper
+# for the data partition when the real partition is busy.
+modprobe -q dm-mod 2>/dev/null || true
+modprobe -q dm-linear 2>/dev/null || true
+
+if [ -f /netoy-copy-iso.sh ] && [ -x /init.orig ]; then
+	. /netoy-copy-iso.sh
+	netoy_find_and_copy_iso
+fi
+
+exec /init.orig
