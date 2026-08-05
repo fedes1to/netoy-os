@@ -7,6 +7,16 @@ submodule in `for-bootable` mode) is right there on the serial console
 *and* the VGA console, with your Ventoy data partition already mounted
 and writable at `/mnt/netoy`.
 
+## Screenshots
+
+| Welcome | Network |
+| --- | --- |
+| ![Welcome screen](media/welcome.png) | ![Network screen](media/network.png) |
+
+| Manage ISOs | Download ISOs |
+| --- | --- |
+| ![Manage ISOs screen](media/manage.png) | ![Download ISOs screen](media/download.png) |
+
 ## What you get
 
 - A minimal Alpine environment that boots **straight into netoy-tui** —
