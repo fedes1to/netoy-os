@@ -66,14 +66,32 @@ cd /work
 export NETOY_OVERLAY=/work/overlay
 
 # Add kernel modules needed by the initramfs wrapper to mount the Ventoy data
-# partition (exfat/ntfs3) and loop-mount the ISO. Device-mapper modules are
-# needed to create the Ventoy remount mapper.
+# partition (exfat/vfat/ntfs), enumerate the USB stick, and loop-mount the ISO.
+# Device-mapper modules are needed to create the Ventoy remount mapper.
 mkdir -p /etc/mkinitfs/features.d
 cat > /etc/mkinitfs/features.d/netoy.modules <<'EOF'
 kernel/fs/exfat/exfat.ko*
 kernel/fs/ntfs3/ntfs3.ko*
+kernel/fs/fat/fat.ko*
+kernel/fs/fat/vfat.ko*
+kernel/fs/nls/nls_utf8.ko*
+kernel/fs/nls/nls_cp437.ko*
+kernel/fs/nls/nls_iso8859-1.ko*
+kernel/fs/iso9660/iso9660.ko*
+kernel/drivers/usb/host/xhci-hcd.ko*
+kernel/drivers/usb/host/xhci-pci.ko*
+kernel/drivers/usb/host/ehci-hcd.ko*
+kernel/drivers/usb/host/ehci-pci.ko*
+kernel/drivers/usb/host/ohci-hcd.ko*
+kernel/drivers/usb/host/ohci-pci.ko*
+kernel/drivers/usb/host/uhci-hcd.ko*
+kernel/drivers/usb/storage/usb-storage.ko*
+kernel/drivers/usb/storage/uas.ko*
+kernel/drivers/scsi/sd_mod.ko*
+kernel/drivers/scsi/scsi_mod.ko*
 kernel/drivers/md/dm-mod.ko*
 kernel/drivers/md/dm-linear.ko*
+kernel/drivers/block/loop.ko*
 EOF
 
 # Add losetup and a static dmsetup to the initramfs so the wrapper can attach
@@ -128,6 +146,16 @@ cp /work/overlay/initramfs-files/init init
 chmod +x init
 cp /work/overlay/initramfs-files/netoy-copy-iso.sh netoy-copy-iso.sh
 chmod +x netoy-copy-iso.sh
+
+# The wrapper copies the netoy ISO into RAM and attaches it to /dev/loop0.
+# Patch init.orig to use that loop device as the boot media: when
+# NETOY_LOOP_DEV is set we mount it at /media/loop0 (or accept the mount that
+# nlplug-findfs already performed) instead of relying on nlplug-findfs to scan
+# every device, which is what previously dropped the boot into the emergency
+# recovery shell (the loop was already mounted, so the re-mount with -o loop
+# failed with "Resource busy").
+chmod +x /work/overlay/initramfs-files/patch-init.orig.sh
+/work/overlay/initramfs-files/patch-init.orig.sh
 
 # The initramfs busybox has the losetup applet, but the symlink may not be
 # created by mkinitfs. Make sure it exists so the Ventoy wrapper can attach

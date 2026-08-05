@@ -8,23 +8,83 @@
 
 export PATH=/usr/bin:/usr/sbin:/bin:/sbin
 
-# Make sure the basic virtual filesystems are present for blkid, modprobe, etc.
-mount -t proc proc /proc 2>/dev/null || true
-mount -t sysfs sys /sys 2>/dev/null || true
-mount -t devtmpfs dev /dev 2>/dev/null || true
+# Install all busybox symlinks up front so the wrapper can use mount, modprobe,
+# blkid, find, stat, dd, etc. before the original Alpine initramfs sets up /dev
+# and /bin. The cpio already has /bin/sh and /sbin/modprobe; busybox --install
+# will only create missing links, so kmod-based modprobe stays intact.
+/bin/busybox --install -s 2>/dev/null || true
 
-# The initramfs busybox has losetup/dmsetup built-in or copied in, but the
-# symlinks may be missing.
-[ -x /sbin/losetup ] || ln -sf /bin/busybox /sbin/losetup 2>/dev/null || true
+# Make sure the basic virtual filesystems are present for blkid, modprobe, etc.
+# NOTE: deliberately do NOT mount devtmpfs on /dev here.  The stock Alpine init
+# (/init.orig) mounts devtmpfs itself a few lines after we hand over; if we
+# leave a devtmpfs already mounted on /dev, its mount fails (EBUSY) and it
+# falls back to an *empty* tmpfs on /dev.  That tmpfs hides /dev/loop0 (the RAM
+# copy of the netoy ISO) and makes the boot-media mount fail with
+# "Can't lookup blockdev" -> the emergency recovery shell.  The cpio /dev
+# starts empty; we create the minimal nodes we need below instead.
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+
+# The cpio /dev may be empty. If devtmpfs did not mount or populate /dev, create
+# the minimal nodes we need. /dev/kmsg is used by the wrapper so diagnostics are
+# captured in the kernel log even when the userspace console is not visible.
+[ -c /dev/null ] || mknod -m 0666 /dev/null c 1 3 2>/dev/null || true
+[ -c /dev/kmsg ] || mknod -m 0660 /dev/kmsg c 1 11 2>/dev/null || true
+[ -c /dev/console ] || mknod -m 0600 /dev/console c 5 1 2>/dev/null || true
 
 # Load device-mapper support; the Ventoy wrapper creates a linear remapper
 # for the data partition when the real partition is busy.
 modprobe -q dm-mod 2>/dev/null || true
 modprobe -q dm-linear 2>/dev/null || true
 
-if [ -f /netoy-copy-iso.sh ] && [ -x /init.orig ]; then
+# The loop module must be present before we try to attach the copied ISO to a
+# loop device; otherwise losetup fails and nlplug-findfs never sees the RAM
+# copy as boot media. iso9660 is needed to mount that loop as the boot media.
+modprobe -q loop 2>/dev/null || true
+modprobe -q iso9660 2>/dev/null || true
+
+# The USB data partition containing the ISO is only visible once the host
+# controller, storage, and SCSI disk drivers are loaded. Load them here so the
+# wrapper can detect the device instead of waiting for init.orig's boot-driver
+# phase (which runs much later).
+modprobe -q xhci-hcd 2>/dev/null || true
+modprobe -q xhci-pci 2>/dev/null || true
+modprobe -q ehci-hcd 2>/dev/null || true
+modprobe -q ehci-pci 2>/dev/null || true
+modprobe -q ohci-hcd 2>/dev/null || true
+modprobe -q uhci-hcd 2>/dev/null || true
+modprobe -q usb-storage 2>/dev/null || true
+modprobe -q uas 2>/dev/null || true
+modprobe -q sd_mod 2>/dev/null || true
+modprobe -q scsi_mod 2>/dev/null || true
+modprobe -q nls_utf8 2>/dev/null || true
+modprobe -q nls_cp437 2>/dev/null || true
+modprobe -q nls_iso8859-1 2>/dev/null || true
+
+# The initramfs busybox has losetup/dmsetup built-in or copied in, but the
+# symlinks may be missing.
+[ -x /sbin/losetup ] || ln -sf /bin/busybox /sbin/losetup 2>/dev/null || true
+
+if [ -f /ventoy/ventoy_os_param ] && [ -f /netoy-copy-iso.sh ] && [ -x /init.orig ]; then
+	printf 'netoy: Ventoy boot detected, running ISO copy wrapper\n' > /dev/kmsg
 	. /netoy-copy-iso.sh
-	netoy_find_and_copy_iso
+	if netoy_find_and_copy_iso; then
+		# The RAM loop device is the only boot media we want init.orig to see.
+		# init.orig's boot-media block is patched to use $NETOY_LOOP_DEV when it
+		# is set. Leave the variable unset on failure so init.orig falls back
+		# to scanning all devices (Ventoy's native path).
+		export NETOY_LOOP_DEV=/dev/loop0
+	fi
 fi
+
+# Hand a pristine root back to the stock Alpine initramfs: unmount the proc
+# and sysfs we mounted for our own work so init.orig sets them up fresh,
+# exactly like a plain (non-Ventoy) boot.  We deliberately never mounted
+# devtmpfs on /dev (see the mount block at the top), so init.orig's own
+# devtmpfs mount will succeed and populate /dev/loop0 (the RAM copy of the
+# netoy ISO).  The loop0 attachment and the tmpfs holding the ISO copy at
+# /run/netoy-iso-ram are separate mounts and survive this.
+umount /proc 2>/dev/null || true
+umount /sys 2>/dev/null || true
 
 exec /init.orig
