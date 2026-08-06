@@ -31,3 +31,12 @@ Thumbs.db
 # The binary is rebuilt from the submodule source on every build; the tracked
 # copy was a stale commit of a local cargo build and must not come back.
 overlay/usr/local/bin/netoy-tui
+
+# Build artifacts copied into the overlay by build-in-container.sh (cloned from
+# upstream GitHub and built, or curl'd at build time). Rebuilt/refreshed on
+# every build, so the committed copies are stale and must not come back.
+overlay/usr/local/bin/impala
+overlay/var/cache/dnscrypt-proxy/
+
+# Empty npm lockfile left over from scaffolding; repo has no npm project.
+package-lock.json
