@@ -28,7 +28,9 @@ stop_conflicting_services() {
 }
 
 restart_networkmanager() {
-    rc-service networkmanager restart
+    # Suppress OpenRC's chatter ("* Stopping networkmanager..." etc.) and
+    # let the TUI show one clean status line instead.
+    rc-service networkmanager restart >/dev/null 2>&1
 }
 
 cmd_get() {
