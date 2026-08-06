@@ -24,7 +24,14 @@ profile_netoy() {
 		openssl
 		psmisc
 		iproute2
+		networkmanager
+		networkmanager-wifi
+		networkmanager-tui
+		networkmanager-openrc
+		networkmanager-cli
+		wpa_supplicant
 		iwd
+		iwd-openrc
 		dhcpcd
 		dbus
 		eudev

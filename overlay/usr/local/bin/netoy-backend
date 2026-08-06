@@ -1,0 +1,85 @@
+#!/bin/sh
+# netoy-backend: switch the Wi-Fi backend between wpa_supplicant (default,
+# used by NetworkManager) and iwd, restarting NetworkManager afterwards.
+#
+# The TUI (netoy-tui) calls this with `get`, `set wpa_supplicant` or
+# `set iwd`. The config under /etc/NetworkManager/conf.d is the source of
+# truth and is rewritten on switch; it is also what `get` reports, so the
+# active backend is always consistent with NetworkManager's actual state.
+
+set -e
+
+CONF="/etc/NetworkManager/conf.d/wifi-backend.conf"
+
+backend_from_conf() {
+    if [ -f "$CONF" ] && grep -q '^[[:space:]]*wifi.backend=iwd' "$CONF"; then
+        echo "iwd"
+    else
+        echo "wpa_supplicant"
+    fi
+}
+
+# Make sure iwd (if installed) is not left half-running in a way that
+# fights NetworkManager when switching back to wpa_supplicant.
+stop_conflicting_services() {
+    rc-service iwd stop >/dev/null 2>&1 || true
+    rc-service wpa_supplicant stop >/dev/null 2>&1 || true
+    rc-service networking stop >/dev/null 2>&1 || true
+}
+
+restart_networkmanager() {
+    rc-service networkmanager restart
+}
+
+cmd_get() {
+    backend_from_conf
+    exit 0
+}
+
+cmd_set() {
+    backend="$1"
+    case "$backend" in
+        wpa_supplicant)
+            cat > "$CONF" <<'EOF'
+[device]
+wifi.backend=wpa_supplicant
+EOF
+            ;;
+        iwd)
+            cat > "$CONF" <<'EOF'
+[device]
+wifi.backend=iwd
+wifi.iwd.autoconnect=yes
+EOF
+            ;;
+        *)
+            echo "usage: netoy-backend {get|set wpa_supplicant|set iwd}" >&2
+            exit 1
+            ;;
+    esac
+
+    stop_conflicting_services
+
+    # For the iwd backend, start iwd so NetworkManager can talk to it.
+    if [ "$backend" = "iwd" ]; then
+        rc-service iwd start >/dev/null 2>&1 || true
+        sleep 1
+    fi
+
+    restart_networkmanager
+    echo "WiFi backend switched to $backend (NetworkManager restarted)"
+}
+
+case "${1:-}" in
+    get)
+        cmd_get
+        ;;
+    set)
+        shift
+        cmd_set "$@"
+        ;;
+    *)
+        echo "usage: netoy-backend {get|set wpa_supplicant|set iwd}" >&2
+        exit 1
+        ;;
+esac

@@ -63,7 +63,7 @@ rc_add bootmisc boot
 rc_add syslog boot
 
 rc_add dbus default
-rc_add iwd default
+rc_add networkmanager default
 
 rc_add mount-ro shutdown
 rc_add killprocs shutdown

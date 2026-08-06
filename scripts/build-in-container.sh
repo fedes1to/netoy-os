@@ -6,7 +6,7 @@ REPO_MAIN="https://dl-cdn.alpinelinux.org/alpine/v$ALPINE_VERSION/main"
 REPO_COMM="https://dl-cdn.alpinelinux.org/alpine/v$ALPINE_VERSION/community"
 
 # -----------------------------------------------------------------------------
-# Install host tools needed by mkimage.sh and for compiling netoy-tui/impala
+# Install host tools needed by mkimage.sh and for compiling netoy-tui
 # -----------------------------------------------------------------------------
 apk add --no-cache \
     abuild apk-tools alpine-conf busybox fakeroot syslinux xorriso \
@@ -32,14 +32,8 @@ strip target/release/netoy-tui
 cp target/release/netoy-tui /work/overlay/usr/local/bin/
 
 # -----------------------------------------------------------------------------
-# Build impala (iwd TUI)
+# (impala build removed: the Network tab now launches nmtui instead.)
 # -----------------------------------------------------------------------------
-rm -rf /tmp/impala-build
-git clone --depth 1 https://github.com/pythops/impala.git /tmp/impala-build
-cd /tmp/impala-build
-cargo build --release
-strip target/release/impala
-cp target/release/impala /work/overlay/usr/local/bin/
 
 # -----------------------------------------------------------------------------
 # Pre-fetch dnscrypt-proxy resolver list so DoH works without an initial

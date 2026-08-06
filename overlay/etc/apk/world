@@ -3,7 +3,14 @@ libgcc
 openssl
 psmisc
 iproute2
+networkmanager
+networkmanager-wifi
+networkmanager-tui
+networkmanager-openrc
+wpa_supplicant
 iwd
+iwd-openrc
+networkmanager-cli
 dhcpcd
 dbus
 eudev

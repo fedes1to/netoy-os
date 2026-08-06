@@ -21,8 +21,9 @@ and writable at `/mnt/netoy`.
 
 - A minimal Alpine environment that boots **straight into netoy-tui** —
   on both the serial console and VGA.
-- All the networking tools preinstalled: `iwd` (D-Bus) + `impala` for
-  Wi-Fi, `dhcpcd` for Ethernet, `iproute2` for manual/static config.
+- All the networking tools preinstalled: `NetworkManager` (Wi-Fi backend:
+  `wpa_supplicant` by default, `iwd` switchable) + `nmtui` for Wi-Fi and
+  Ethernet, `dhcpcd` as the DHCP client, `iproute2` for manual/static config.
 - The whole netoy ISO copied into RAM and Ventoy's boot hook
   neutralized — so the USB stick (or CD) can be **unplugged after boot**.
 - The real Ventoy data partition mounted read-write at `/mnt/netoy`,
@@ -74,9 +75,9 @@ Requirements on the host:
 - The `netoy-tui` git submodule initialized: `git submodule update --init`
 
 The script builds entirely inside an `alpine:3.24` container: compiles
-`netoy-tui` with `--features for-bootable`, clones and compiles
-`impala`, then runs Alpine's official `mkimage.sh` to produce the ISO
-in `out/`. Newer builds are dated `YYMMDD`, e.g. `netoy-260724-x86_64.iso`.
+`netoy-tui` with `--features for-bootable`, then runs Alpine's official
+`mkimage.sh` to produce the ISO in `out/`. Newer builds are dated
+`YYMMDD`, e.g. `netoy-260724-x86_64.iso`.
 
 ## Try it in QEMU
 
@@ -117,12 +118,13 @@ Auto-login root on every configured console via
 `tty1` (VGA) and `ttyS0` (serial). `tty2`–`tty6` are auto-login root
 shells.
 
-- `<W>` on the Network screen starts `impala` to configure Wi-Fi.
-- `<E>` auto-configures the first Ethernet interface with `dhcpcd` and
-  reports a short status. Re-check with `<R>` to see the negotiated
-  address.
-- `<A>` opens the **manual Ethernet** form — DHCP or static, interface,
-  IP, CIDR prefix, gateway, two DNS servers, MTU. **Enter** applies.
+- `<N>` on the Network screen launches `nmtui` — NetworkManager's own
+  full-screen TUI — for all Wi-Fi / Ethernet / manual IP+DNS config.
+- `<B>` toggles the Wi-Fi backend (`wpa_supplicant` ↔ `iwd`) and
+  restarts NetworkManager; the active backend is shown as an indicator.
+- `<T>` runs a quick DNS/connectivity test (ping IP + hostname).
+- The network status is re-checked automatically every ~5 seconds until
+  the machine is online.
 - `<M>` on the Manage ISOs screen remounts the Ventoy data partition at
   `/mnt/netoy` if needed (normally `netoy-ram` already did it at boot).
 
@@ -143,8 +145,10 @@ shells.
 
 ## Notes / limitations
 
-- The image is intentionally minimal: `iwd` for Wi-Fi link layer,
-  `dhcpcd` for DHCP, `iproute2` for manual/static config.
+- The image is intentionally minimal: `NetworkManager` (Wi-Fi backend:
+  `wpa_supplicant` by default, switchable to `iwd`) for Wi-Fi/Ethernet
+  management, `nmtui` as the front-end, `dhcpcd` as the DHCP client,
+  `iproute2` for manual/static config.
 - Want an even simpler (but more RAM-hungry) approach? Replace the
   compressed modloop copy in `netoy-ram` with Alpine's official
   `copy-modloop` tool, which copies the uncompressed `/lib/modules`
