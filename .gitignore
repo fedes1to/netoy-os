@@ -26,3 +26,8 @@ Thumbs.db
 
 # netoy-tui is tracked as a submodule (see .gitmodules)
 # Submodule paths are tracked by git, do NOT ignore the directory itself.
+
+# netoy-tui build artifact copied into the overlay by build-in-container.sh.
+# The binary is rebuilt from the submodule source on every build; the tracked
+# copy was a stale commit of a local cargo build and must not come back.
+overlay/usr/local/bin/netoy-tui

@@ -12,7 +12,8 @@ apk add --no-cache \
     abuild apk-tools alpine-conf busybox fakeroot syslinux xorriso \
     squashfs-tools mtools grub-efi git curl \
     rust cargo musl-dev \
-    device-mapper-static
+    device-mapper-static \
+    linux-firmware
 
 # An abuild key is required because mkimage.sh signs the modloop and the
 # boot repository's APKINDEX. We are root, so install the public key manually
@@ -61,6 +62,12 @@ curl -fsSL -o "$DNSCACHE/public-resolvers.md.tmp" \
 # Build the Alpine ISO with the netoy profile.
 # ------------------------------------------------------------------------------
 cd /work
+
+# Use our vendored, patched update-kernel (from alpine-conf) instead of the
+# package's: it copies the whole firmware family when a driver requests an API
+# version that linux-firmware does not ship under that exact name (e.g. the
+# AX211 wants iwlwifi-so-a0-gf-a0-100.ucode, linux-firmware ships …-89.ucode).
+export PATH="/work/vendor/alpine-conf:$PATH"
 
 # Point the apkovl generator at our overlay tree
 export NETOY_OVERLAY=/work/overlay
@@ -197,6 +204,41 @@ if [ -n "$PRIVKEY" ]; then
     if unsquashfs -f -d "$WORKDIR/modloop-root" "$WORKDIR/modloop-lts.orig" >/dev/null 2>&1; then
         rm -rf "$WORKDIR/modloop-root/modules/firmware/nvidia" \
                "$WORKDIR/modloop-root/modules/firmware/cirrus"
+
+        # ---- Dynamic-firmware wifi/ethernet drivers -----------------------
+        # update-kernel only copies firmware that modinfo reports for a
+        # loaded module. These wifi/ethernet drivers load firmware
+        # dynamically at runtime (probing the chip), so modinfo lists
+        # nothing and their firmware never makes it into the modloop — the
+        # card then fails to start. Curated list of the firmware dirs for
+        # such drivers; each is only copied if its driver module is present
+        # in the modloop (so we never ship dead weight).
+        FW_SRC=/lib/firmware
+        FW_DST="$WORKDIR/modloop-root/modules/firmware"
+        KDIR="$(ls -d "$WORKDIR"/modloop-root/modules/[0-9]* 2>/dev/null | head -n1)/kernel"
+        # firmware dir : module names that own it
+        DYNFW_DIRS='
+            ath12k:ath12k
+            mwlwifi:mwl8k
+            rsi:rsi_91x
+            mellanox:mlx4_core mlx5_core
+            liquidio:liquidio
+        '
+        for pair in $DYNFW_DIRS; do
+            fwdir=${pair%%:*}
+            mods=${pair#*:}
+            [ -d "$FW_SRC/$fwdir" ] || continue
+            [ -d "$FW_DST/$fwdir" ] && continue
+            for mod in $mods; do
+                if find "$KDIR/drivers/net" -name "${mod}.ko" 2>/dev/null | grep -q .; then
+                    mkdir -p "$FW_DST/$fwdir"
+                    cp -aL "$FW_SRC/$fwdir/." "$FW_DST/$fwdir/" 2>/dev/null || true
+                    echo "  dynamic-fw: copied $fwdir/ into modloop (module $mod)"
+                    break
+                fi
+            done
+        done
+
         if mksquashfs "$WORKDIR/modloop-root" "$MODLOOP_TRIMMED" \
                 -no-progress -comp xz -exit-on-error -Xbcj x86 -all-root >/dev/null 2>&1; then
             echo "  trimmed: $(wc -c < "$WORKDIR/modloop-lts.orig") -> $(wc -c < "$MODLOOP_TRIMMED") bytes"

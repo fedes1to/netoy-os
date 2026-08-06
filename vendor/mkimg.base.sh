@@ -23,7 +23,7 @@ build_kernel() {
 		--repositories-file "$APKROOT/etc/apk/repositories" \
 		"$DESTDIR"
 	for _add in $boot_addons; do
-		apk fetch --root "$APKROOT" --quiet --stdout $_add | tar -C "${DESTDIR}" -zx boot/
+		apk fetch --root "$APKROOT" --no-cache --quiet --stdout $_add | tar -C "${DESTDIR}" -zx boot/
 	done
 }
 
@@ -34,7 +34,7 @@ section_kernels() {
 		for _a in $kernel_addons; do
 			_pkgs="$_pkgs $_a-$_f"
 		done
-		local id=$( (echo "$initfs_features::$_hostkeys" ; apk fetch --root "$APKROOT" --simulate alpine-base $_pkgs | sort) | checksum)
+		local id=$( (echo "$initfs_features::$_hostkeys" ; apk fetch --root "$APKROOT" --no-cache --simulate alpine-base $_pkgs | sort) | checksum)
 		build_section kernel $ARCH $_f $id $_pkgs
 	done
 }
@@ -44,7 +44,7 @@ build_apks() {
 	local _archdir="$_apksdir/$ARCH"
 	mkdir -p "$_archdir"
 
-	apk fetch --root "$APKROOT" --link --recursive --output "$_archdir" $apks
+	apk fetch --root "$APKROOT" --no-cache --link --recursive --output "$_archdir" $apks
 	if ! ls "$_archdir"/*.apk >& /dev/null; then
 		return 1
 	fi
@@ -62,7 +62,7 @@ build_apks() {
 
 section_apks() {
 	[ -n "$apks" ] || return 0
-	build_section apks $ARCH $(apk fetch --root "$APKROOT" --simulate --recursive $apks | sort | checksum)
+	build_section apks $ARCH $(apk fetch --root "$APKROOT" --no-cache --simulate --recursive $apks | sort | checksum)
 }
 
 build_apkovl() {
@@ -87,7 +87,7 @@ section_apkovl() {
 build_syslinux() {
 	local _fn
 	mkdir -p "$DESTDIR"/boot/syslinux
-	apk fetch --root "$APKROOT" --stdout syslinux | tar -C "$DESTDIR" -xz usr/share/syslinux
+	apk fetch --root "$APKROOT" --no-cache --stdout syslinux | tar -C "$DESTDIR" -xz usr/share/syslinux
 	for _fn in isohdpfx.bin isolinux.bin ldlinux.c32 libutil.c32 libcom32.c32 mboot.c32; do
 		mv "$DESTDIR"/usr/share/syslinux/$_fn "$DESTDIR"/boot/syslinux/$_fn
 	done
@@ -97,7 +97,7 @@ build_syslinux() {
 section_syslinux() {
 	[ "$ARCH" = x86 -o "$ARCH" = x86_64 ] || return 0
 	[ "$output_format" = "iso" ] || return 0
-	build_section syslinux $(apk fetch --root "$APKROOT" --simulate syslinux | sort | checksum)
+	build_section syslinux $(apk fetch --root "$APKROOT" --no-cache --simulate syslinux | sort | checksum)
 }
 
 syslinux_gen_config() {
@@ -202,7 +202,7 @@ build_grub_efi() {
 	local _format="$1"
 	local _efi="$2"
 
-	apk fetch --root "$APKROOT" --quiet --stdout grub-efi | tar -C "$WORKDIR" -zx usr/lib/grub
+	apk fetch --root "$APKROOT" --no-cache --quiet --stdout grub-efi | tar -C "$WORKDIR" -zx usr/lib/grub
 
 	# Prepare grub-efi bootloader
 	mkdir -p "$DESTDIR/efi/boot"
@@ -285,7 +285,7 @@ create_image_iso() {
 	fi
 
 	if [ "$ARCH" = ppc64le ]; then
-		apk fetch --root "$APKROOT" --quiet --stdout grub-ieee1275 | tar -C "$WORKDIR" -zx usr/lib/grub
+		apk fetch --root "$APKROOT" --no-cache --quiet --stdout grub-ieee1275 | tar -C "$WORKDIR" -zx usr/lib/grub
 		grub-mkrescue --output ${ISO} ${DESTDIR} -follow-links \
 			--directory="$WORKDIR"/usr/lib/grub/powerpc-ieee1275 \
 			-sysid LINUX \

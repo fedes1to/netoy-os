@@ -296,7 +296,7 @@ for ARCH in $req_arch; do
 			echo "$repo" >> "$_repositories"
 		done
 	fi
-	apk update --root "$APKROOT"
+	apk update --no-cache --root "$APKROOT"
 
 	if [ "$_yaml" = "yes" ]; then
 		_yaml_out=${OUTDIR:-.}/latest-releases.yaml
