@@ -1,10 +1,12 @@
 #!/bin/sh
-# netoy-dns: DNS configuration and test helper for the netoy TUI.
+# netoy-dns: DNS helper for the netoy TUI.
 #
 # Subcommands:
-#   set-plain [dns1] [dns2]   Write plain DNS servers to /etc/resolv.conf
-#   set-doh                  Start dnscrypt-proxy and point /etc/resolv.conf to 127.0.0.1
-#   test                     Ping an IP and a hostname to verify DNS resolution
+#   test   Ping an IP and a hostname to verify DNS resolution
+#
+# DNS itself is handled by NetworkManager's dnsmasq plugin (local resolver
+# on 127.0.0.1 forwarding upstream). set-plain / set-doh are kept only for
+# backward compatibility and are no longer wired to the TUI.
 
 set -e
 

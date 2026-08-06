@@ -23,7 +23,8 @@ and writable at `/mnt/netoy`.
   on both the serial console and VGA.
 - All the networking tools preinstalled: `NetworkManager` (Wi-Fi backend:
   `wpa_supplicant` by default, `iwd` switchable) + `nmtui` for Wi-Fi and
-  Ethernet, `dhcpcd` as the DHCP client, `iproute2` for manual/static config.
+  Ethernet, NetworkManager's internal DHCP client, dnsmasq as the DNS
+  resolver, `iproute2` for manual/static config.
 - The whole netoy ISO copied into RAM and Ventoy's boot hook
   neutralized — so the USB stick (or CD) can be **unplugged after boot**.
 - The real Ventoy data partition mounted read-write at `/mnt/netoy`,
@@ -147,8 +148,8 @@ shells.
 
 - The image is intentionally minimal: `NetworkManager` (Wi-Fi backend:
   `wpa_supplicant` by default, switchable to `iwd`) for Wi-Fi/Ethernet
-  management, `nmtui` as the front-end, `dhcpcd` as the DHCP client,
-  `iproute2` for manual/static config.
+  management, `nmtui` as the front-end, NetworkManager's internal DHCP
+  client + dnsmasq for DNS, `iproute2` for manual/static config.
 - Want an even simpler (but more RAM-hungry) approach? Replace the
   compressed modloop copy in `netoy-ram` with Alpine's official
   `copy-modloop` tool, which copies the uncompressed `/lib/modules`
