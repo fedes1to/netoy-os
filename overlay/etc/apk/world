@@ -11,7 +11,6 @@ wpa_supplicant
 iwd
 iwd-openrc
 networkmanager-cli
-networkmanager-dnsmasq
 dbus
 eudev
 ca-certificates

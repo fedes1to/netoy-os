@@ -29,7 +29,6 @@ profile_netoy() {
 		networkmanager-tui
 		networkmanager-openrc
 		networkmanager-cli
-		networkmanager-dnsmasq
 		wpa_supplicant
 		iwd
 		iwd-openrc
