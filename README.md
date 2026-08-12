@@ -2,7 +2,7 @@
 
 **The netoy-tui appliance.** An Alpine Linux-based bootable ISO that
 turns a plain Ventoy stick into a self-contained USB ISO manager — boot
-it, and the TUI (built from the [netoy-tui](https://forgejo.fedesito.me/fedesito/netoy-tui)
+it, and the TUI (built from the [netoy-tui](https://git.fedesito.me/fedesito/netoy-tui)
 submodule in `for-bootable` mode) is right there on the serial console
 *and* the VGA console, with your Ventoy data partition already mounted
 and writable at `/mnt/netoy`.
