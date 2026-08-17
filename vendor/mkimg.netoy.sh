@@ -39,6 +39,8 @@ profile_netoy() {
 		dnscrypt-proxy-openrc
 		agetty
 		util-linux-login
+		device-mapper
+		links
 		lynx
 		curl
 		wget
